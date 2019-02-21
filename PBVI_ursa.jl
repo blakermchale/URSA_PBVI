@@ -1,5 +1,3 @@
-cd("/home/macheng/Dropbox/ursa_pomdp")  #sepcify the currect working directory
-push!(LOAD_PATH,pwd())      #add the current path to the module search path
 using Revise
 using ursa_functions
 using Plots
