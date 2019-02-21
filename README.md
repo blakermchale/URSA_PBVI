@@ -1,5 +1,7 @@
 This folder constains codes for point-based value iteration implemented for
-ursa application at a checkpoint described in https://arxiv.org/abs/1902.05644
+ursa application at a checkpoint described in:
+
+Macheng Shen, Jonathan P How , Active Perception in Adversarial Scenarios using Maximum Entropy Deep Reinforcement Learning (https://arxiv.org/abs/1902.05644)
 
 Three algorithms are implemented: (1) normal point-based value iteration in belief space (rho-POMDP), reference:
 
