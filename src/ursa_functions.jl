@@ -1,11 +1,13 @@
 __precompile__()
 module ursa_functions
 
-using Gallium
 using Plots
 using JuMP
 using Clp
 using Distributions
+using SpecialFunctions
+
+gr(reuse=true)
 
 struct URSAState
     b::Real     #belief
@@ -68,15 +70,15 @@ function PBVI_solver(N_B::Int64,ursa::URSA)
     this=PBVI_solver()
     this.N_B=N_B
     this.ursa=ursa
-    db=0.998/(N_B-1)
+    db=0.998/(N_B - 1)
     this.B=collect(0.001:db:0.999)
-    slope=log.(this.B)-log.(1-this.B)
+    slope=log.(this.B) - log.(1 .- this.B)
     entro=entropy_ursa.(this.B)
     #now solve for the rho_alpha vector
-    this.rho_alpha=Array{Array{Float64,1}}(N_B)
-    this.alpha=Array{Array{Float64,1}}(N_B)
-    this.Value=Array{Float64,1}(N_B)
-    this.p_opt=Array{Array{Float64,2}}(N_B,ursa.Num_actions)
+    this.rho_alpha=Array{Array{Float64,1}}(undef, N_B)
+    this.alpha=Array{Array{Float64,1}}(undef, N_B)
+    this.Value=Array{Float64,1}(undef, N_B)
+    this.p_opt=Array{Array{Float64,2}}(undef, N_B,ursa.Num_actions)
 
     for k=1:N_B
         A=[-1 1;
@@ -92,8 +94,8 @@ end
 dot_alpha_b(alpha::Array{Float64},b::Float64)=alpha[1]*(1-b)+alpha[2]*b
 
 function initialize_alpha!(pbvi_solver::PBVI_solver)
-    #pbvi_solver.alpha=Array{Array{Float64,1},1}(pbvi_solver.N_B)
-    #pbvi_solver.Value=Array{Float64,1}(pbvi_solver.N_B)
+    #pbvi_solver.alpha=Array{Array{Float64,1},1}(undef, pbvi_solver.N_B)
+    #pbvi_solver.Value=Array{Float64,1}(undef, pbvi_solver.N_B)
     m_0=minimum(pbvi_solver.ursa.r_action_civil)+entropy_ursa(0.5)
     m_1=minimum(pbvi_solver.ursa.r_action_hostile)+entropy_ursa(0.5)
     for i=1:pbvi_solver.N_B
@@ -131,9 +133,9 @@ function solve!(pbvi_solver::PBVI_solver)
     N_b=pbvi_solver.N_B
     N_ob=pbvi_solver.ursa.Num_t_actions
     gamma=pbvi_solver.ursa.discount_factor
-    pbvi_solver.opt_action=Array{Int64}(N_b)
+    pbvi_solver.opt_action=Array{Int64}(undef, N_b)
     #see PBVI paper section 3.1 pseudo code
-    Gamma_a_star=Array{Array{Float64,1},2}(N_action,N_b)
+    Gamma_a_star=Array{Array{Float64,1},2}(undef, N_action,N_b)
     for i=1:N_action
         for j=1:N_b
             Gamma_a_star[i,j]=pbvi_solver.rho_alpha[j]+[pbvi_solver.ursa.r_action_civil[i];pbvi_solver.ursa.r_action_hostile[i]]
@@ -141,7 +143,7 @@ function solve!(pbvi_solver::PBVI_solver)
     end
 
     for n_iter=1:pbvi_solver.ursa.N_iter
-        Gamma_a_o=Array{Array{Float64,1},3}(N_action,N_ob,N_b)
+        Gamma_a_o=Array{Array{Float64,1},3}(undef, N_action,N_ob,N_b)
         for i=1:N_action
             for j=1:N_ob
                 for k=1:N_b
@@ -150,8 +152,8 @@ function solve!(pbvi_solver::PBVI_solver)
             end
         end
 
-        Gamma_a_b=Array{Array{Float64,1},2}(N_action,N_b)
-        temp_alpha=Array{Array{Float64,1},3}(N_action,N_b,N_ob)
+        Gamma_a_b=Array{Array{Float64,1},2}(undef, N_action,N_b)
+        temp_alpha=Array{Array{Float64,1},3}(undef, N_action,N_b,N_ob)
         for i=1:N_action
             for j=1:N_b
                 Gamma_a_b[i,j]=Gamma_a_star[i,j]
@@ -170,8 +172,8 @@ function solve!(pbvi_solver::PBVI_solver)
             pbvi_solver.Value[i]=dot_alpha_b(pbvi_solver.alpha[i],pbvi_solver.B[i])
         end
     end #end the iteration loop
-    Plots.plot(pbvi_solver.B,pbvi_solver.Value,xlabel="Belief",ylabel="Value",label="Value function")
-    Plots.plot!(pbvi_solver.B,pbvi_solver.opt_action, label="Optimal actions")
+    plot(pbvi_solver.B,pbvi_solver.Value,xlabel="Belief",ylabel="Value",label="Value function")
+    plot!(pbvi_solver.B,pbvi_solver.opt_action, label="Optimal actions")
 end
 
 function get_argmax_alpha(array_alpha::Array{Array{Float64,1},1},b::Float64)
@@ -194,7 +196,7 @@ function robust_solve!(pb::PBVI_solver)
     gamma=pb.ursa.discount_factor
 
     for n_iter=1:pb.ursa.N_iter
-        pb.opt_action=Array{Int64}(N_b)
+        pb.opt_action=Array{Int64}(undef, N_b)
 
         Lam_til=Array{Array{Float64,1},1}()
         for i=1:N_b
@@ -219,13 +221,13 @@ function robust_solve!(pb::PBVI_solver)
         end
         pb.alpha=deepcopy(Lam_til)
     end
-    Plots.plot(pb.B,pb.Value,xlabel="Belief",ylabel="Value",label="Robust Value function")
-    Plots.plot!(pb.B,pb.opt_action, label="Optimal actions")
+    plot(pb.B,pb.Value,xlabel="Belief",ylabel="Value",label="Robust Value function")
+    plot!(pb.B,pb.opt_action, label="Optimal actions")
 end
 
 
 function get_p_alpha(pb::PBVI_solver,b::Float64,a::Int64)
-    m=Model(solver=ClpSolver())
+    m=Model(with_optimizer(Clp.Optimizer, LogLevel=0))
     @variable(m, U[1:pb.ursa.Num_t_actions])
     @variable(m, p[1:pb.ursa.Num_t_actions,1:2]) #last dim represents lambda, p's bound depends on a
     @variable(m, rhs_5[1:pb.N_B,1:pb.ursa.Num_t_actions])
@@ -247,11 +249,11 @@ function get_p_alpha(pb::PBVI_solver,b::Float64,a::Int64)
     #normalization constraint
     @constraint(m, sum(p[:,1])==1.0)
     @constraint(m, sum(p[:,2])==1.0)
-    status=solve(m)
+    status=optimize!(m)
     #now retrieve the needed variables
-    U_opt=getvalue(U)
-    alpha_opt=Array{Array{Float64,1},1}(pb.ursa.Num_t_actions)
-    rhs_5_opt=getvalue(rhs_5)
+    U_opt=value.(U)
+    alpha_opt=Array{Array{Float64,1},1}(undef, pb.ursa.Num_t_actions)
+    rhs_5_opt=value.(rhs_5)
     for j=1:pb.ursa.Num_t_actions
         for i=1:pb.N_B
             if rhs_5_opt[i,j]>=U_opt[j]-10.0^(-3.0)
@@ -259,15 +261,15 @@ function get_p_alpha(pb::PBVI_solver,b::Float64,a::Int64)
             end
         end
     end
-    return getvalue(p), alpha_opt
+    return value.(p), alpha_opt
 end
 
 #pay attention!!! We are not actually solving for the finite horizon problem
 #this solved value function is an approximate for the infiniy horizon problem
 # we mix the use of N_iter and N_steps
 function policy(b::Float64,pb::PBVI_solver,flag::String)
-    diff=abs.(pb.B-b)
-    nearest=indmin(diff) # index for the belief
+    diff=abs.(pb.B .- b)
+    nearest=argmin(diff) # index for the belief
     opt_action=pb.opt_action[nearest]
     if flag=="robust"
         return opt_action,pb.p_opt[nearest,opt_action]
@@ -280,7 +282,7 @@ end
 function adversarial_p(b::Float64,pb_rob::PBVI_solver,a::Int64)
     #get the adversarial prob given belief, robust solved policy (to retrieve the p_opt) and an action
     diff=abs.(pb_rob.B-b)
-    nearest=indmin(diff) # index for the belief
+    nearest=argmin(diff) # index for the belief
     #opt_action=pb.opt_action[nearest]
     return pb_rob.p_opt[nearest,a]
 end
@@ -328,7 +330,7 @@ function chance_solve!(pb::PBVI_solver,epsilon::Float64,sigma2::Float64)
     N_ob=pb.ursa.Num_t_actions
     gamma=pb.ursa.discount_factor
     for n_iter=1:pb.ursa.N_iter
-        pb.opt_action=Array{Int64}(N_b)
+        pb.opt_action=Array{Int64}(undef, N_b)
         for i=1:N_b
             value_a=zeros(pb.ursa.Num_actions)  #record the value of a at that belief point b
             for j=1:pb.ursa.Num_actions
@@ -337,8 +339,8 @@ function chance_solve!(pb::PBVI_solver,epsilon::Float64,sigma2::Float64)
             pb.Value[i],pb.opt_action[i]=findmax(value_a)
         end
     end
-    Plots.plot(pb.B,pb.Value,xlabel="Belief",ylabel="Value",label="Chance Value function")
-    Plots.plot!(pb.B,pb.opt_action, label="Optimal actions")
+    plot(pb.B,pb.Value,xlabel="Belief",ylabel="Value",label="Chance Value function")
+    plot!(pb.B,pb.opt_action, label="Optimal actions")
 end
 
 function get_chance_threshold(pb::PBVI_solver,b::Float64,a::Int64,epsilon::Float64,sigma2::Float64)
@@ -393,7 +395,7 @@ function simulate_true_reward_ursa(i_b::Float64, pb::PBVI_solver, flag::String, 
     beliefs[1]=i_b
     cumu_reward=0.0
     imme_reward=zeros(N)
-    p_opt=Array{Array{Float64,2},1}(N)
+    p_opt=Array{Array{Float64,2},1}(undef, N)
     for i=1:N
         a[i], p_opt[i]=policy(beliefs[i],pb,flag)
         if flag_ursa=="random"
@@ -425,8 +427,8 @@ function simulate_true_reward_ursa_adversary(i_b::Float64, pb::PBVI_solver, flag
     beliefs[1]=i_b
     cumu_reward=0.0
     imme_reward=zeros(N)
-    p_opt=Array{Array{Float64,2},1}(N)
-    p_true=Array{Array{Float64,2},1}(N)
+    p_opt=Array{Array{Float64,2},1}(undef, N)
+    p_true=Array{Array{Float64,2},1}(undef, N)
     for i=1:N
         a[i], p_opt[i]=policy(beliefs[i],pb,flag)
         p_true[i]=adversarial_p(beliefs[i],pb_rob,a[i])  #get an adversarial probability
