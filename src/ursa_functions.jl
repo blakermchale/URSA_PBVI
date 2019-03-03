@@ -413,7 +413,7 @@ function simulate_true_reward_ursa(i_b::Float64, pb::PBVI_solver, flag::String, 
             @assert a_t[i]>0
             beliefs[i+1]=belief_update(beliefs[i], p_opt[i], a_t[i])
         end
-        #println("Step=",i,", belief=",round(beliefs[i],3),", action=",a[i],", t_action=",a_t[i],", i_reward=",round(r,3),", c_reward=",round(cumu_reward,3))
+        # println("Step=",i,", belief=",round(beliefs[i]; digits=3),", action=",a[i],", t_action=",a_t[i],", i_reward=",round(r; digits=3),", c_reward=",round(cumu_reward; digits=3))
     end
     return cumu_reward
 end
@@ -441,7 +441,7 @@ function simulate_true_reward_ursa_adversary(i_b::Float64, pb::PBVI_solver, flag
             @assert a_t[i]>0
             beliefs[i+1]=belief_update(beliefs[i], p_opt[i], a_t[i])
         end
-        #println("Step=",i,", belief=",round(beliefs[i],3),", action=",a[i],", t_action=",a_t[i],", i_reward=",round(r,3),", c_reward=",round(cumu_reward,3))
+        # println("Step=",i,", belief=",round(beliefs[i]; digits=3),", action=",a[i],", t_action=",a_t[i],", i_reward=",round(r; digits=3),", c_reward=",round(cumu_reward; digits=3))
     end
     return cumu_reward
 end
